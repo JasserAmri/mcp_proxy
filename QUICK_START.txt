@@ -1,0 +1,67 @@
+# ⚡ QUICK START
+
+## 📍 PROJECT LOCATION
+```
+C:\Users\JasserAMRI\OneDrive - QuickText\Desktop\mcp-proxy\
+```
+
+## ✅ FILES CREATED
+- mcp_proxy.py (main server)
+- ki_space_skill.py (robot skill)
+- requirements.txt
+- Procfile
+- .gitignore
+
+## 🚀 NEXT STEPS
+
+### 1. Test Locally (5 min)
+```bash
+cd "C:\Users\JasserAMRI\OneDrive - QuickText\Desktop\mcp-proxy"
+chcp 65001
+pip install -r requirements.txt
+python mcp_proxy.py
+```
+
+Expected output:
+```
+✅ MCP initialized
+INFO: Uvicorn running on http://0.0.0.0:8000
+```
+
+### 2. Test Endpoint
+Open new terminal:
+```bash
+curl http://localhost:8000/health
+```
+
+### 3. Deploy to Railway
+```bash
+npm install -g @railway/cli
+railway login
+railway init
+railway up
+railway domain
+```
+
+You'll get URL like: https://quicktext-mcp.railway.app
+
+### 4. Update ki_space_skill.py
+Change line 33:
+```python
+self.proxy_url = "https://YOUR-RAILWAY-URL/query"
+```
+
+### 5. Send to Christvie
+Email with:
+- Deployed URL
+- ki_space_skill.py file
+- Test curl command
+
+## 🔥 For Monday Call
+Have ready:
+1. Deployed URL
+2. Test results
+3. Demo command ready
+
+## ❓ Issues?
+Continue with Gemini/ChatGPT using files in mcp-proxy folder.
