@@ -22,7 +22,7 @@ except Exception:  # pragma: no cover
     Robot = Any  # type: ignore[misc,assignment]
 
 
-DEFAULT_PROXY_URL = os.environ.get("KI_SPACE_PROXY_URL", "http://localhost:8000/query")
+DEFAULT_PROXY_URL = os.environ.get("KI_SPACE_PROXY_URL", "https://mcp-proxy-vg3s.onrender.com/query")
 DEFAULT_TEAM_ID = os.environ.get("KI_SPACE_TEAM_ID", "4577")
 DEFAULT_LOCALE = os.environ.get("KI_SPACE_LOCALE", "fr_FR")
 
