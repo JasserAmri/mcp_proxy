@@ -265,14 +265,35 @@ async def search_dialogs(keywords: list[str], property_kind: int = 1):
                 "keywords": True
             }
         )
-        
+
         return {
             "success": True,
             "data": result
         }
-        
+
     except Exception as e:
         raise HTTPException(500, str(e))
+
+
+@app.get("/test-dialog/{dialog_id}")
+async def test_dialog(dialog_id: str, team_id: str = "4577"):
+    """Test a specific dialog ID directly"""
+    try:
+        result = await mcp_session.call_tool(
+            "get-dialog-configuration",
+            {"team_id": team_id, "dialogs": dialog_id}
+        )
+        return {
+            "success": True,
+            "dialog_id": dialog_id,
+            "raw_response": result
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "dialog_id": dialog_id,
+            "error": str(e)
+        }
 
 
 # ============ HELPER FUNCTIONS ============

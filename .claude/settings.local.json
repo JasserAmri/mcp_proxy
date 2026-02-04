@@ -6,7 +6,27 @@
       "Bash(npm install:*)",
       "Bash(git init:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(gh auth status:*)",
+      "Bash(git remote add:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)",
+      "WebFetch(domain:mcp-proxy-vg3s.onrender.com)",
+      "Bash(curl -s -X POST https://mcp-proxy-vg3s.onrender.com/query -H \"Content-Type: application/json\" -d \"{\"\"team_id\"\":\"\"4577\"\",\"\"query\"\":\"\"petit déjeuner horaires\"\",\"\"locale\"\":\"\"fr_FR\"\"}\")",
+      "Bash(curl -s -X POST https://mcp-proxy-vg3s.onrender.com/query -H \"Content-Type: application/json\" -d \"{\"\"team_id\"\":\"\"4577\"\",\"\"query\"\":\"\"petit dejeuner\"\",\"\"locale\"\":\"\"fr_FR\"\"}\")",
+      "Bash(curl:*)",
+      "mcp__plugin_serena_serena__list_memories",
+      "mcp__plugin_serena_serena__activate_project",
+      "mcp__plugin_serena_serena__list_dir",
+      "Bash(dir /b \"C:\\\\Users\\\\JasserAMRI\\\\OneDrive - QuickText\\\\Desktop\\\\mcp-proxy\")",
+      "WebFetch(domain:mcp-proxy-2xc7.onrender.com)",
+      "Bash(powershell -Command:*)",
+      "Bash(findstr:*)",
+      "Bash(python -c \"import json; data=open\\(r''C:\\\\Users\\\\JasserAMRI\\\\.claude\\\\projects\\\\C--Users-JasserAMRI-OneDrive---QuickText-Desktop-mcp-proxy\\\\8ee215bc-c005-4521-99c2-2113a002805e\\\\tool-results\\\\toolu_018adYbRoGNusNE1S3oJuRCM.txt''\\).read\\(\\); d=json.loads\\(data\\); txt=d[''data''][''content''][0][''text'']; dialogs=json.loads\\(txt\\); [print\\(f''{cat} -> {k}: {v[\"\"name\"\"]}''\\) for cat,items in dialogs.items\\(\\) for k,v in items.items\\(\\) if ''check'' in v[''name''].lower\\(\\) or ''arrival'' in v[''name''].lower\\(\\) or ''depart'' in v[''name''].lower\\(\\)]\")",
+      "Bash(.venvScriptspython.exe -c \"import json; data=open\\(r''C:\\\\Users\\\\JasserAMRI\\\\.claude\\\\projects\\\\C--Users-JasserAMRI-OneDrive---QuickText-Desktop-mcp-proxy\\\\8ee215bc-c005-4521-99c2-2113a002805e\\\\tool-results\\\\toolu_018adYbRoGNusNE1S3oJuRCM.txt''\\).read\\(\\); d=json.loads\\(data\\); txt=d[''data''][''content''][0][''text'']; dialogs=json.loads\\(txt\\); [print\\(f''{cat} -> {k}: {v}''\\) for cat,items in dialogs.items\\(\\) for k,v in items.items\\(\\) if ''check'' in str\\(v\\).lower\\(\\)]\")",
+      "Bash(\"C:\\\\Users\\\\JasserAMRI\\\\OneDrive - QuickText\\\\Desktop\\\\mcp-proxy\\\\.venv\\\\Scripts\\\\python.exe\" -c \"import json; f=open\\(r''C:\\\\Users\\\\JasserAMRI\\\\.claude\\\\projects\\\\C--Users-JasserAMRI-OneDrive---QuickText-Desktop-mcp-proxy\\\\8ee215bc-c005-4521-99c2-2113a002805e\\\\tool-results\\\\toolu_018adYbRoGNusNE1S3oJuRCM.txt'', encoding=''utf-8''\\); d=json.load\\(f\\); txt=d[''data''][''content''][0][''text'']; dialogs=json.loads\\(txt\\); [print\\(f''{cat} -> {k}: {v[\"\"name\"\"]}''\\) for cat,items in dialogs.items\\(\\) for k,v in items.items\\(\\) if ''check'' in str\\(v\\).lower\\(\\)]\")",
+      "Bash(\"C:\\\\Users\\\\JasserAMRI\\\\OneDrive - QuickText\\\\Desktop\\\\mcp-proxy\\\\.venv\\\\Scripts\\\\python.exe\" -c \"import json; f=open\\(r''C:\\\\Users\\\\JasserAMRI\\\\.claude\\\\projects\\\\C--Users-JasserAMRI-OneDrive---QuickText-Desktop-mcp-proxy\\\\8ee215bc-c005-4521-99c2-2113a002805e\\\\tool-results\\\\toolu_018adYbRoGNusNE1S3oJuRCM.txt'', encoding=''utf-8''\\); d=json.load\\(f\\); txt=d[''data''][''content''][0][''text'']; dialogs=json.loads\\(txt\\); [print\\(f''{cat} -> {k}: {v[\"\"name\"\"]} - {v[\"\"description\"\"]}''\\) for cat,items in dialogs.items\\(\\) for k,v in items.items\\(\\) if any\\(x in str\\(v\\).lower\\(\\) for x in [''hotel'', ''about'', ''general'', ''présent'', ''intro'', ''welcome'', ''description'', ''info'']\\)]\")"
     ]
   }
 }
