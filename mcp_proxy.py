@@ -191,17 +191,38 @@ async def handle_query(request: QueryRequest):
     
     try:
         logger.info(f"📝 Query received: '{request.query}' for team {request.team_id}")
-        
+
         # 1. Detect intent
         dialog_id = detect_intent(request.query)
         logger.info(f"🎯 Detected dialog: {dialog_id}")
-        
+
+        # Special case: Hotel presentation (combines multiple info)
+        if dialog_id == "PRESENTATION":
+            try:
+                settings_result = await mcp_session.call_tool("get-hotel-settings", {"teams": request.team_id})
+                hotel_info = parse_hotel_settings(settings_result)
+                elapsed = (datetime.now() - start_time).total_seconds() * 1000
+                return QueryResponse(
+                    success=True,
+                    response=hotel_info,
+                    dialog_id="PRESENTATION",
+                    latency_ms=int(elapsed)
+                )
+            except Exception as e:
+                logger.error(f"Presentation error: {e}")
+                return QueryResponse(
+                    success=True,
+                    response="Bienvenue au Ki Space Val d'Europe, un hôtel 4 étoiles situé près de Disneyland Paris. Nous proposons 274 chambres, un restaurant, une piscine intérieure, un spa et une salle de sport.",
+                    dialog_id="PRESENTATION",
+                    latency_ms=int((datetime.now() - start_time).total_seconds() * 1000)
+                )
+
         # 2. Call MCP
         dialog_request = {
             "team_id": request.team_id,
             "dialogs": dialog_id
         }
-        
+
         result = await mcp_session.call_tool("get-dialog-configuration", dialog_request)
         
         # 3. Parse MCP response
@@ -305,99 +326,209 @@ def detect_intent(query: str) -> str:
     """
     query_lower = query.lower()
 
-    # ===== BREAKFAST (12-xx) - PRIORITY #1 =====
-    # Real MCP dialogs: 12-01=time, 12-02=rates, 12-05=menu
+    # ===== CHECK-IN (11-01) - PRIORITY #1 =====
+    checkin_keywords = [
+        "check-in", "checkin", "check in", "arrivée", "arrivee", "heure d'arrivée",
+        "enregistrement", "à quelle heure on arrive", "hora de llegada", "einchecken", "arrivo"
+    ]
+    if any(k in query_lower for k in checkin_keywords):
+        return "11-01"
+
+    # ===== CHECK-OUT (11-11) - PRIORITY #2 =====
+    checkout_keywords = [
+        "check-out", "checkout", "check out", "départ", "depart", "heure de départ",
+        "libérer", "liberer", "quitter", "hora de salida", "auschecken", "partenza"
+    ]
+    if any(k in query_lower for k in checkout_keywords):
+        return "11-11"
+
+    # ===== BREAKFAST (12-xx) - PRIORITY #3 =====
     breakfast_keywords = [
         "petit déjeuner", "petit-déjeuner", "petit dejeuner", "petit dej", "petit déj", "breakfast",
         "desayuno", "colazione", "frühstück", "fruhstuck"
     ]
     if any(k in query_lower for k in breakfast_keywords):
-        # Menu - what food is served
         if any(k in query_lower for k in [
             "menu", "carte", "quoi", "propose", "options", "contenu", "buffet", "plat", "disponible", "servi", "servis",
             "menú", "menu del", "menù", "menü"
         ]):
             return "12-05"
-        # Rates - price information  
         if any(k in query_lower for k in [
             "prix", "tarif", "coût", "combien", "rate", "price", "cost", "cher", "payant", "gratuit",
             "precio", "prezzo", "preis", "costo"
         ]):
             return "12-02"
-        # Time - opening hours
         if any(k in query_lower for k in [
             "horaire", "horaires", "heure", "heures", "quand", "time", "opening", "hours", "ouvre", "ferme", "matin",
             "horario", "horarios", "orari", "öffnungszeiten", "uhrzeit"
         ]):
             return "12-01"
-        # Default breakfast
         return "12-01"
 
-    # ===== PARKING (17-02) - PRIORITY #2 =====
-    parking_keywords = ["parking", "voiture", "garer", "stationnement", "place", "aparcamiento", "parcheggio", "parkplatz"]
+    # ===== PARKING (13-01) - PRIORITY #4 =====
+    parking_keywords = [
+        "parking", "voiture", "garer", "stationnement", "place de parking", "garage",
+        "véhicule", "vehicule", "car park", "aparcamiento", "parcheggio", "parkplatz",
+        "borne électrique", "borne electrique", "electric car", "recharge", "charging"
+    ]
     if any(k in query_lower for k in parking_keywords):
-        return "17-02"
+        return "13-01"
 
-    # ===== ROOMS (14-01 / 10-01) - PRIORITY #3 =====
-    # Use 14-01 for room assignment/number/location; otherwise booking/general.
-    room_keywords = ["chambre", "room", "suite", "lit", "beds", "bed"]
-    if any(k in query_lower for k in room_keywords):
-        if any(k in query_lower for k in ["numéro", "numero", "number", "assign", "attribuée", "ou est", "où est", "where is", "ma chambre", "my room"]):
-            return "14-01"
-        return "10-01"
+    # ===== PETS/ANIMALS (16-10) - PRIORITY #5 =====
+    pets_keywords = [
+        "animal", "animaux", "chien", "chat", "pet", "pets", "dog", "cat",
+        "mascota", "animale", "haustier", "hund", "katze", "cane", "gatto"
+    ]
+    if any(k in query_lower for k in pets_keywords):
+        return "16-10"
 
-    # ===== WIFI/INTERNET (12-04) - PRIORITY #4 =====
-    wifi_keywords = ["wifi", "wi-fi", "internet", "connexion", "réseau", "reseau", "web", "code wifi", "contraseña", "password", "passwort", "conexión", "connessione"]
+    # ===== LUGGAGE (11-21) - PRIORITY #6 =====
+    luggage_keywords = [
+        "bagage", "bagages", "valise", "valises", "consigne", "luggage", "suitcase",
+        "equipaje", "bagaglio", "gepäck", "koffer"
+    ]
+    if any(k in query_lower for k in luggage_keywords):
+        return "11-21"
+
+    # ===== WIFI/INTERNET (13-11/13-12) - PRIORITY #7 =====
+    wifi_keywords = [
+        "wifi", "wi-fi", "internet", "connexion", "réseau", "reseau", "web",
+        "contraseña", "password", "passwort", "conexión", "connessione"
+    ]
     if any(k in query_lower for k in wifi_keywords):
-        return "12-04"
+        if any(k in query_lower for k in ["code", "mot de passe", "password", "accès", "acces", "connect"]):
+            return "13-12"
+        return "13-11"
 
-    # ===== RESTAURANT (18-xx) - PRIORITY #5 =====
-    restaurant_keywords = ["restaurant", "dîner", "diner", "dinner", "manger", "repas", "déjeuner", "dejeuner", "restaurante", "ristorante"]
+    # ===== RESTAURANT (18-01) - PRIORITY #8 =====
+    restaurant_keywords = [
+        "restaurant", "dîner", "diner", "dinner", "manger", "repas", "déjeuner", "dejeuner",
+        "restaurante", "ristorante", "lunch", "souper"
+    ]
     if any(k in query_lower for k in restaurant_keywords):
-        return "18-01"  # Restaurant general
+        return "18-01"
 
-    # ===== SWIMMING POOL (17-61/17-62) - PRIORITY #6 =====
-    pool_keywords = ["piscine", "pool", "nager", "baignade", "nage", "piscina", "schwimmbad"]
+    # ===== SWIMMING POOL (17-61/17-62) - PRIORITY #9 =====
+    pool_keywords = ["piscine", "pool", "nager", "baignade", "nage", "piscina", "schwimmbad", "swimming"]
     if any(k in query_lower for k in pool_keywords):
         if any(k in query_lower for k in [
             "horaire", "horaires", "heure", "heures", "quand", "time", "opening", "hours",
             "horario", "horarios", "orari", "öffnungszeiten", "uhrzeit"
         ]):
-            return "17-62"  # Pool hours
-        return "17-61"  # Pool general
+            return "17-62"
+        return "17-61"
 
-    # ===== SPA (17-06) - PRIORITY #7 =====
-    spa_keywords = ["spa", "massage", "bien-être", "bien etre", "relaxation", "soins", "wellness", "benessere"]
+    # ===== SPA (17-10) - PRIORITY #10 =====
+    spa_keywords = [
+        "spa", "massage", "bien-être", "bien etre", "relaxation", "soins", "wellness",
+        "benessere", "hammam", "sauna", "jacuzzi"
+    ]
     if any(k in query_lower for k in spa_keywords):
-        return "17-06"
+        return "17-10"
 
-    # ===== GYM/FITNESS (17-07) - PRIORITY #8 =====
-    gym_keywords = ["gym", "fitness", "sport", "muscu", "entraînement", "entrainement", "salle de sport", "gimnasio", "palestra", "fitnessraum"]
+    # ===== GYM/FITNESS (17-31) - PRIORITY #11 =====
+    gym_keywords = [
+        "gym", "fitness", "sport", "muscu", "musculation", "entraînement", "entrainement",
+        "salle de sport", "gimnasio", "palestra", "fitnessraum", "exercise"
+    ]
     if any(k in query_lower for k in gym_keywords):
-        return "17-07"
+        return "17-31"
 
-    # ===== BOOKING (10-xx) - PRIORITY #9 =====
-    booking_keywords = ["réservation", "réserver", "booking", "reserve", "résa", "resa", "reserva", "prenotazione", "reservierung"]
-    if any(k in query_lower for k in booking_keywords):
-        return "10-01"  # Booking general
-
-    # ===== CANCELLATION (10-08) - PRIORITY #10 =====
-    cancel_keywords = ["annulation", "annuler", "cancel", "cancellation", "cancelación", "annullamento", "stornierung"]
+    # ===== CANCELLATION (10-05) - PRIORITY #12 =====
+    cancel_keywords = [
+        "annulation", "annuler", "cancel", "cancellation", "cancelación", "annullamento",
+        "stornierung", "politique d'annulation", "conditions d'annulation", "rembours"
+    ]
     if any(k in query_lower for k in cancel_keywords):
-        return "10-08"
+        return "10-05"
 
-    # ===== PRICING (10-03) - PRIORITY #11 =====
+    # ===== ROOMS (14-01 / 10-01) - PRIORITY #13 =====
+    room_keywords = ["chambre", "room", "suite", "lit", "beds", "bed", "hébergement", "hebergement"]
+    if any(k in query_lower for k in room_keywords):
+        if any(k in query_lower for k in ["numéro", "numero", "number", "assign", "attribuée", "où est", "where is", "ma chambre", "my room"]):
+            return "14-01"
+        return "10-01"
+
+    # ===== LOCATION/ADDRESS (19-01) - PRIORITY #14 =====
+    location_keywords = [
+        "adresse", "address", "où", "localisation", "location", "situé", "situe",
+        "comment venir", "how to get", "dirección", "indirizzo", "adresse"
+    ]
+    if any(k in query_lower for k in location_keywords):
+        return "19-01"
+
+    # ===== HOTEL PRESENTATION - PRIORITY #15 =====
+    presentation_keywords = [
+        "présente", "presente", "présentation", "presentation", "parle-moi de", "parle moi de",
+        "c'est quoi", "describe", "about the hotel", "tell me about", "qu'est-ce que",
+        "hôtel", "hotel", "établissement", "etablissement"
+    ]
+    if any(k in query_lower for k in presentation_keywords):
+        return "PRESENTATION"
+
+    # ===== BOOKING (10-01) - PRIORITY #16 =====
+    booking_keywords = [
+        "réservation", "réserver", "booking", "reserve", "résa", "resa",
+        "reserva", "prenotazione", "reservierung", "book"
+    ]
+    if any(k in query_lower for k in booking_keywords):
+        return "10-01"
+
+    # ===== PRICING (10-03) - PRIORITY #17 =====
     price_keywords = ["prix", "tarif", "coût", "combien", "rate", "price", "cost", "cher", "gratuit"]
     if any(k in query_lower for k in price_keywords):
         return "10-03"
 
-    # ===== NEARBY (19-xx) - PRIORITY #12 =====
-    nearby_keywords = ["proximité", "près", "autour", "nearby", "close", "aux alentours"]
+    # ===== NEARBY (19-01) - PRIORITY #18 =====
+    nearby_keywords = ["proximité", "près", "autour", "nearby", "close", "aux alentours", "around"]
     if any(k in query_lower for k in nearby_keywords):
-        return "19-01"  # Location general
+        return "19-01"
 
     # Default fallback
     return "10-01"
+
+
+def parse_hotel_settings(settings_result: Dict[str, Any]) -> str:
+    """Parse hotel settings to create a presentation text"""
+    try:
+        content = settings_result.get("content", [])
+        if isinstance(content, list) and content:
+            text = content[0].get("text", "")
+            if text:
+                data = json.loads(text)
+                if isinstance(data, list) and data:
+                    hotel = data[0]
+                    info = hotel.get("information", {})
+
+                    name = info.get("name", "l'hôtel")
+                    stars = info.get("stars", 4)
+                    rooms = info.get("rooms", "")
+                    address = info.get("address", {}).get("location", "")
+                    checkin = info.get("checkin", "15:00")
+                    checkout = info.get("checkout", "11:00")
+
+                    parts = [f"Bienvenue au {name}"]
+                    if stars:
+                        parts.append(f"un hôtel {stars} étoiles")
+                    if address:
+                        parts.append(f"situé au {address}")
+                    if rooms:
+                        parts.append(f"Nous disposons de {rooms} chambres")
+
+                    extras = []
+                    extras.append("un restaurant")
+                    extras.append("une piscine intérieure chauffée")
+                    extras.append("un spa")
+                    extras.append("une salle de sport")
+
+                    parts.append("avec " + ", ".join(extras))
+                    parts.append(f"Check-in à partir de {checkin}, check-out avant {checkout}")
+
+                    return ". ".join(parts) + "."
+    except Exception as e:
+        logger.error(f"Error parsing hotel settings: {e}")
+
+    return "Bienvenue au Ki Space Val d'Europe, un hôtel 4 étoiles situé près de Disneyland Paris. Nous proposons 274 chambres, un restaurant, une piscine intérieure, un spa et une salle de sport. Check-in à 15h00, check-out à 11h00."
 
 
 def parse_mcp_response(mcp_result: Dict[str, Any]) -> Dict[str, Any]:
@@ -533,6 +664,159 @@ def format_for_voice(config_data: Dict[str, Any], locale: str, dialog_id: str) -
 
     raw = config_data.get("raw") if isinstance(config_data, dict) else None
     if isinstance(raw, dict):
+
+        # ===== CHECK-IN (11-01) =====
+        if dialog_id == "11-01":
+            message = raw.get("message")
+            if isinstance(message, dict):
+                localized = message.get(lang) or message.get("fr") or message.get("en")
+                if isinstance(localized, str) and localized.strip():
+                    return localized.strip()
+
+        # ===== CHECK-OUT (11-11) =====
+        if dialog_id == "11-11":
+            message = raw.get("message")
+            if isinstance(message, dict):
+                localized = message.get(lang) or message.get("fr") or message.get("en")
+                if isinstance(localized, str) and localized.strip():
+                    return localized.strip()
+
+        # ===== PARKING (13-01) =====
+        if dialog_id == "13-01":
+            message_yes = raw.get("messageYes")
+            if isinstance(message_yes, dict):
+                localized = message_yes.get(lang) or message_yes.get("fr") or message_yes.get("en")
+                if isinstance(localized, str) and localized.strip():
+                    return localized.strip()
+
+        # ===== CANCELLATION (10-05) =====
+        if dialog_id == "10-05":
+            message = raw.get("message")
+            if isinstance(message, dict):
+                localized = message.get(lang) or message.get("fr") or message.get("en")
+                if isinstance(localized, str) and localized.strip():
+                    return localized.strip()
+
+        # ===== PETS (16-10) =====
+        if dialog_id == "16-10":
+            has_pets = raw.get("hasPets")
+            if has_pets == "yes":
+                fee = raw.get("petFeeUnit", {})
+                fee_value = fee.get("value") if isinstance(fee, dict) else None
+                fee_unit = fee.get("unit", "EUR") if isinstance(fee, dict) else "EUR"
+                max_pets = raw.get("maxPetPerRoom", {}).get("value") if isinstance(raw.get("maxPetPerRoom"), dict) else None
+                max_weight = raw.get("maxWeightValue", {}).get("value") if isinstance(raw.get("maxWeightValue"), dict) else None
+
+                parts = ["Les animaux sont acceptés dans l'hôtel" if lang == "fr" else "Pets are welcome at the hotel"]
+                if fee_value:
+                    parts.append(f"supplément de {fee_value} {fee_unit} par animal" if lang == "fr" else f"fee of {fee_value} {fee_unit} per pet")
+                if max_pets:
+                    parts.append(f"maximum {max_pets} par chambre" if lang == "fr" else f"max {max_pets} per room")
+                if max_weight:
+                    parts.append(f"poids maximum {max_weight} kg" if lang == "fr" else f"max weight {max_weight} kg")
+                return ", ".join(parts) + "."
+            else:
+                return "Les animaux ne sont pas acceptés dans l'hôtel." if lang == "fr" else "Pets are not allowed at the hotel."
+
+        # ===== LUGGAGE (11-21) =====
+        if dialog_id == "11-21":
+            has_luggage = raw.get("hasStoreLuggage")
+            if has_luggage == "yes":
+                return "Nous pouvons garder vos bagages avant le check-in ou après le check-out." if lang == "fr" else "We can store your luggage before check-in or after check-out."
+            return "La consigne à bagages n'est pas disponible." if lang == "fr" else "Luggage storage is not available."
+
+        # ===== WIFI (13-11) =====
+        if dialog_id == "13-11":
+            has_wifi = raw.get("hasWifi")
+            if has_wifi == "yesWifi":
+                standard = raw.get("standardWifi")
+                hi_speed = raw.get("hiSpeedWifi")
+                speed = raw.get("hiSpeedValue", {}).get("value") if isinstance(raw.get("hiSpeedValue"), dict) else None
+
+                parts = ["Le WiFi est disponible" if lang == "fr" else "WiFi is available"]
+                if standard == "yesFree" or hi_speed == "yesFreeHispeed":
+                    parts.append("gratuitement" if lang == "fr" else "for free")
+                if speed:
+                    parts.append(f"vitesse jusqu'à {speed} Mbit/s" if lang == "fr" else f"speed up to {speed} Mbit/s")
+                return ", ".join(parts) + "."
+            return "Le WiFi n'est pas disponible." if lang == "fr" else "WiFi is not available."
+
+        # ===== WIFI CODE (13-12) =====
+        if dialog_id == "13-12":
+            code_type = raw.get("wifiCodeTypes")
+            if code_type == "wifiCodeAtFrontDesk":
+                return "Le code WiFi est disponible à la réception." if lang == "fr" else "WiFi code is available at the front desk."
+            return "Demandez le code WiFi à la réception." if lang == "fr" else "Ask for the WiFi code at the front desk."
+
+        # ===== SPA (17-10) =====
+        if dialog_id == "17-10":
+            has_spa = raw.get("hasSpa")
+            if has_spa == "yes":
+                tabs = raw.get("spasTabs")
+                if isinstance(tabs, list) and tabs:
+                    spa = tabs[0]
+                    name = spa.get("spaName", "Le spa")
+                    facilities = spa.get("facilities", [])
+                    guest_price = spa.get("freeForGuestPriceValue", {})
+                    guest_fee = guest_price.get("value") if isinstance(guest_price, dict) else None
+                    age_limit = spa.get("ageLimitValue", {}).get("value") if isinstance(spa.get("ageLimitValue"), dict) else None
+
+                    parts = [f"{name.strip()} propose" if lang == "fr" else f"{name.strip()} offers"]
+                    if facilities:
+                        facilities_fr = {"jacuzzi": "jacuzzi", "massage": "massages", "pool": "piscine", "steamBath": "hammam", "sauna": "sauna", "solarium": "solarium"}
+                        fac_text = ", ".join(facilities_fr.get(f, f) for f in facilities[:4])
+                        parts.append(fac_text)
+                    if guest_fee:
+                        parts.append(f"tarif clients: {guest_fee} EUR/heure" if lang == "fr" else f"guest rate: {guest_fee} EUR/hour")
+                    if age_limit:
+                        parts.append(f"âge minimum {age_limit} ans" if lang == "fr" else f"minimum age {age_limit}")
+                    return ", ".join(parts) + "."
+            return "Le spa n'est pas disponible." if lang == "fr" else "Spa is not available."
+
+        # ===== GYM (17-31) =====
+        if dialog_id == "17-31":
+            has_gym = raw.get("hasFitnessGym")
+            if has_gym == "yes":
+                times = raw.get("openEveryDayTime")
+                free_guests = raw.get("hasFreeForGuests")
+                location = _pick_localized(raw.get("fitnessGymLocation"))
+
+                parts = ["La salle de sport est ouverte" if lang == "fr" else "The gym is open"]
+                if isinstance(times, list) and times:
+                    t = times[0]
+                    parts.append(f"de {t.get('from')} à {t.get('to')}" if lang == "fr" else f"from {t.get('from')} to {t.get('to')}")
+                if free_guests == "yes":
+                    parts.append("gratuite pour les clients" if lang == "fr" else "free for guests")
+                if location:
+                    parts.append(f"située au {location}" if lang == "fr" else f"located at {location}")
+                return ", ".join(parts) + "."
+            return "La salle de sport n'est pas disponible." if lang == "fr" else "Gym is not available."
+
+        # ===== RESTAURANT (18-01) =====
+        if dialog_id == "18-01":
+            has_restaurant = raw.get("hasRestaurant")
+            if has_restaurant:
+                tabs = raw.get("restaurantsTabs")
+                if isinstance(tabs, list) and tabs:
+                    resto = tabs[0]
+                    name = resto.get("restaurantName", "Le restaurant")
+                    kitchen = resto.get("restaurantKitchen", "")
+                    lunch_from = resto.get("restaurantLunchFromMonday")
+                    lunch_to = resto.get("restaurantLunchToMonday")
+                    dinner_from = resto.get("restaurantDinnerFromMonday")
+                    dinner_to = resto.get("restaurantDinnerToMonday")
+
+                    parts = [f"{name.strip()}" if lang == "fr" else f"{name.strip()}"]
+                    if kitchen:
+                        kitchen_fr = {"international": "cuisine internationale", "french": "cuisine française"}
+                        parts.append(kitchen_fr.get(kitchen, kitchen))
+                    if lunch_from and lunch_to:
+                        parts.append(f"déjeuner {lunch_from}-{lunch_to}" if lang == "fr" else f"lunch {lunch_from}-{lunch_to}")
+                    if dinner_from and dinner_to:
+                        parts.append(f"dîner {dinner_from}-{dinner_to}" if lang == "fr" else f"dinner {dinner_from}-{dinner_to}")
+                    return ", ".join(parts) + "."
+            return "Information restaurant disponible à la réception." if lang == "fr" else "Restaurant info available at the front desk."
+
         # Breakfast time (12-01): keys like from/to/serveIn
         if dialog_id == "12-01":
             time_from = raw.get("from") or raw.get("start") or raw.get("startTime")
@@ -546,11 +830,9 @@ def format_for_voice(config_data: Dict[str, Any], locale: str, dialog_id: str) -
         if dialog_id == "12-02":
             message = raw.get("message")
             if isinstance(message, dict):
-                lang = locale.split("_")[0].lower() if locale else "en"
-                localized = message.get(lang) or message.get("en")
+                localized = message.get(lang) or message.get("fr") or message.get("en")
                 if isinstance(localized, str) and localized.strip():
                     return localized.strip()
-            lang = locale.split("_")[0].lower() if locale else "en"
             localized = raw.get(lang) or raw.get("en")
             if isinstance(localized, str) and localized.strip():
                 return localized.strip()
@@ -577,22 +859,6 @@ def format_for_voice(config_data: Dict[str, Any], locale: str, dialog_id: str) -
                 parts.append(f"{label}: {breads_text}")
             if parts:
                 return " / ".join(parts) + "."
-
-        # Parking (17-02): contact info if available
-        if dialog_id == "17-02":
-            settings = raw.get("notificationSettings")
-            if isinstance(settings, list) and settings:
-                item = settings[0]
-                phone = item.get("phone")
-                email = item.get("email")
-                if phone and email:
-                    joiner = "ou" if lang == "fr" else "or"
-                    return phrases["parking"][lang].format(contact=f"{phone} {joiner} {email}")
-                if phone:
-                    return phrases["parking"][lang].format(contact=phone)
-                if email:
-                    return phrases["parking"][lang].format(contact=email)
-            return "Un parking est disponible. Demandez les détails à l'accueil."
 
         # Pool general (17-61): extract pool details
         if dialog_id == "17-61":
@@ -640,30 +906,40 @@ def format_for_voice(config_data: Dict[str, Any], locale: str, dialog_id: str) -
                     if time_from and time_to:
                         return phrases["pool_hours"][lang].format(name=name, from_time=time_from, to_time=time_to)
 
+        # Generic localized message (works for many dialogs)
+        message = raw.get("message")
+        if isinstance(message, dict):
+            localized = message.get(lang) or message.get("fr") or message.get("en")
+            if isinstance(localized, str) and localized.strip():
+                return localized.strip()
+
         # Generic localized text
-        lang = locale.split("_")[0].lower() if locale else "en"
-        localized = raw.get(lang) or raw.get("en")
+        localized = raw.get(lang) or raw.get("fr") or raw.get("en")
         if isinstance(localized, str) and localized.strip():
             return localized.strip()
 
     # Generic fallback based on dialog type
     dialog_responses = {
+        "11-01": "Le check-in est à 15h00. La réception peut vous renseigner sur les arrivées anticipées.",
+        "11-11": "Le check-out est à 11h00. Demandez à la réception pour un départ tardif.",
+        "11-21": "Nous pouvons garder vos bagages. Renseignez-vous à la réception.",
         "12-01": "Le petit-déjeuner est servi le matin. La réception peut vous confirmer les horaires exacts.",
         "12-02": "Le petit-déjeuner est disponible. La réception peut vous confirmer les tarifs.",
         "12-05": "Le petit-déjeuner propose plusieurs options. La réception peut détailler le menu.",
+        "13-01": "Un parking est disponible. Demandez les détails et tarifs à l'accueil.",
+        "13-11": "Le WiFi est disponible dans l'hôtel.",
+        "13-12": "Le code WiFi est disponible à la réception.",
+        "16-10": "Pour les informations sur les animaux, contactez la réception.",
+        "17-10": "Le spa propose différents services. La réception peut vous renseigner.",
+        "17-31": "La salle de sport est accessible. Renseignez-vous à la réception pour les horaires.",
+        "17-61": "La piscine est disponible pour nos clients. Demandez les horaires à la réception.",
+        "17-62": "La piscine est ouverte. Demandez les horaires exacts à la réception.",
         "18-01": "Notre restaurant est ouvert pour le service. Contactez la réception pour plus d'informations.",
-        "17-05": "La piscine est disponible pour nos clients. Demandez les horaires à la réception.",
-        "17-06": "Le spa propose différents services. La réception peut vous renseigner.",
-        "17-02": "Un parking est disponible. Demandez les détails à l'accueil.",
-        "10-08": "Pour les conditions d'annulation, veuillez contacter notre service de réservation.",
+        "10-05": "Pour les conditions d'annulation, veuillez contacter notre service de réservation.",
         "10-01": "Pour toute information sur les réservations, contactez notre équipe.",
-        "17-07": "La salle de sport est accessible. Renseignez-vous à la réception pour les horaires.",
-        "12-04": "Le wifi est disponible dans l'hôtel. Les codes d'accès sont fournis à la réception.",
+        "19-01": "L'hôtel est situé à Serris, près de Disneyland Paris. Demandez l'adresse exacte à la réception.",
     }
-    
-    # Try to extract meaningful info from config_data
-    # This will be refined once we see actual MCP response structure
-    
+
     return dialog_responses.get(dialog_id, "Information disponible à la réception de l'hôtel.")
 
 
