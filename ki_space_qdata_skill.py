@@ -107,9 +107,32 @@ async def ki_space_qdata(
         return {"llm_output": data["response"]}
 
     if data.get("fallback_to_chatgpt") is True:
+        # Fallback intelligent : vérifier si ChatGPT peut vraiment répondre
+        query_lower = query.lower()
+        
+        # Si la question concerne Disney (pas d'info hôtel)
+        disney_keywords = ["disney", "disneyland", "parc", "attraction", "billet", "ticket"]
+        if any(kw in query_lower for kw in disney_keywords):
+            return {
+                "llm_output": f"Pour Disneyland Paris, je vous invite à consulter le site officiel disneyland.fr ou à contacter notre réception au +33 1 85 49 02 70 pour plus d'informations. Vous pouvez aussi réserver vos billets en ligne sur disneyland.fr.",
+                "fallback_to_chatgpt": True,
+                "use_chatgpt": True
+            }
+        
+        # Si la question concerne des informations générales que ChatGPT peut traiter
+        general_keywords = ["météo", "transport", "restaurant extérieur", "shopping", "activité"]
+        if any(kw in query_lower for kw in general_keywords):
+            return {
+                "llm_output": f"En tant qu'assistant de l'hôtel Ki Space Val d'Europe, je peux vous aider sur ce sujet. Pour Disneyland, je vous suggère de visiter le site officiel ou notre réception.",
+                "fallback_to_chatgpt": True,
+                "use_chatgpt": True
+            }
+        
+        # Fallback par défaut pour les autres questions
         return {
-            "llm_output": "Je n'ai pas trouvé l'information dans la base. Utilise tes connaissances générales pour répondre à l'utilisateur.",
+            "llm_output": "Je n'ai pas trouvé cette information spécifique dans notre base de données hôtelières. En tant qu'assistant Ki Space, je vais utiliser mes connaissances générales pour vous aider. N'hésitez pas à contacter notre réception au +33 1 85 49 02 70 pour toute information complémentaire.",
             "fallback_to_chatgpt": True,
+            "use_chatgpt": True
         }
 
     return {"llm_output": "Je n'ai pas trouvé cette information."}
