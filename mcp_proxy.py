@@ -10,6 +10,7 @@ from mcp.client.session import ClientSession
 import asyncio
 import json
 import logging
+import os
 from datetime import datetime
 from typing import Optional, Dict, Any
 
@@ -26,7 +27,7 @@ class MCPSession:
     
     def __init__(self):
         self.base_url = "https://mcp-servers.quicktext.im/mcp"
-        self.token = "qt_QZuKapb07QWqVrqHQPlio00IcuPpxfETAwllBOYf_S4"
+        self.token = os.environ.get("MCP_TOKEN", "")
         self.client: Optional[ClientSession] = None
         self.initialized = False
         self._transport_cm = None
@@ -219,7 +220,7 @@ async def handle_query(request: QueryRequest):
 
         # 2. Call MCP
         dialog_request = {
-            "team_id": request.team_id,
+            "teams": request.team_id,
             "dialogs": dialog_id
         }
 
@@ -302,7 +303,7 @@ async def test_dialog(dialog_id: str, team_id: str = "4577"):
     try:
         result = await mcp_session.call_tool(
             "get-dialog-configuration",
-            {"team_id": team_id, "dialogs": dialog_id}
+            {"teams": team_id, "dialogs": dialog_id}
         )
         return {
             "success": True,
@@ -373,6 +374,15 @@ def detect_intent(query: str) -> str:
     ]
     if any(k in query_lower for k in parking_keywords):
         return "13-01"
+
+    # ===== DISNEYLAND (FORCE_FALLBACK) - PRIORITY #16.5 =====
+    disney_keywords = [
+        "disney", "disneyland", "parc", "attraction", "billet", "ticket",
+        "activité", "activités", "y a til", "il y a", "disney paris",
+        "walt disney", "mickey", "minnie", "princesse", "château", "fermeture", "ouverture", "horaires"
+    ]
+    if any(k in query_lower for k in disney_keywords):
+        return "FORCE_FALLBACK"  # Force fallback intelligent
 
     # ===== PETS/ANIMALS (16-10) - PRIORITY #5 =====
     pets_keywords = [
